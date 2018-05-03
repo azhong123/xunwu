@@ -22,7 +22,9 @@ public class ResultResponse<T> implements Serializable {
 
     private String message;
 
-    private T data;
+    private Object data;
+
+    private Boolean more;
 
     private ResultResponse(String code){
         this.code = code;
@@ -57,8 +59,12 @@ public class ResultResponse<T> implements Serializable {
         return message;
     }
 
-    public T getData(){
+    public Object getData() {
         return data;
+    }
+
+    public Boolean getMore() {
+        return more;
     }
 
     /**
@@ -95,10 +101,6 @@ public class ResultResponse<T> implements Serializable {
     public static <T> ResultResponse<T> createBySuccessKey(String key ,Object obj){
         Map<String,Object> map = new HashMap<String,Object>();
         map.put(key,obj);
-        return createBySuccess((T)map);
-    }
-
-    public static <T> ResultResponse<T> createBySuccessMap(Map map){
         return createBySuccess((T)map);
     }
 
