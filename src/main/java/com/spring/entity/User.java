@@ -10,6 +10,7 @@ import java.util.Date;
 import java.util.List;
 
 /**
+ * 用户实体
  * Created by chenxizhong on 2018/4/11.
  */
 @Data
@@ -79,6 +80,14 @@ public class User implements UserDetails {
     @Transient
     private List<GrantedAuthority> authorityList;
 
+    public List<GrantedAuthority> getAuthorityList() {
+        return authorityList;
+    }
+
+    public void setAuthorityList(List<GrantedAuthority> authorityList) {
+        this.authorityList = authorityList;
+    }
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return this.authorityList;
@@ -108,5 +117,4 @@ public class User implements UserDetails {
     public boolean isEnabled() {
         return true;
     }
-
 }

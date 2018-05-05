@@ -10,4 +10,9 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface UserRepository extends CrudRepository<User, Long> {
+
+    /**
+     * 通过用户名查询查找用户
+     */
+    User findUserByName(String name);
 }
