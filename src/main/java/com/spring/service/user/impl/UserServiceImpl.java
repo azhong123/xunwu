@@ -1,10 +1,10 @@
-package com.spring.service.user;
+package com.spring.service.user.impl;
 
 import com.spring.entity.Role;
 import com.spring.entity.User;
 import com.spring.repository.RoleRepository;
 import com.spring.repository.UserRepository;
-import com.spring.service.IUserService;
+import com.spring.service.user.IUserService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.GrantedAuthority;

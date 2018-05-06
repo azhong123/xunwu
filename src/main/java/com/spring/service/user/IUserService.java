@@ -1,4 +1,4 @@
-package com.spring.service;
+package com.spring.service.user;
 
 import com.spring.entity.User;
 
