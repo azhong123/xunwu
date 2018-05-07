@@ -10,4 +10,6 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface HouseDetailRepository extends CrudRepository<HouseDetail ,Long> {
+
+    HouseDetail findByHouseId(Long id);
 }

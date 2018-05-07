@@ -4,7 +4,7 @@ import lombok.Data;
 import lombok.ToString;
 
 /**
- *
+ * 房屋详情
  * Created by chenxizhong on 2018/5/6.
  */
 @Data

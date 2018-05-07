@@ -29,16 +29,32 @@ public class ApiResponse {
         return code;
     }
 
+    public void setCode(int code) {
+        this.code = code;
+    }
+
     public String getMessage() {
         return message;
+    }
+
+    public void setMessage(String message) {
+        this.message = message;
     }
 
     public Object getData() {
         return data;
     }
 
+    public void setData(Object data) {
+        this.data = data;
+    }
+
     public boolean isMore() {
         return more;
+    }
+
+    public void setMore(boolean more) {
+        this.more = more;
     }
 
     // 构建常用的方法

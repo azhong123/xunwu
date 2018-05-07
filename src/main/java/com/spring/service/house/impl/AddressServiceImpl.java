@@ -1,6 +1,7 @@
 package com.spring.service.house.impl;
 
 import com.spring.common.base.ServiceMultiResult;
+import com.spring.common.base.ServiceResult;
 import com.spring.entity.Subway;
 import com.spring.entity.SubwayStation;
 import com.spring.entity.SupportAddress;
@@ -75,6 +76,11 @@ public class AddressServiceImpl implements IAddressService{
         return new ServiceMultiResult<>(addressDTOS.size(),addressDTOS);
     }
 
+    /**
+     * 获取城市的所有地铁线路
+     * @param cityName
+     * @return
+     */
     @Override
     public ServiceMultiResult<SubwayDTO> findAllSubwayByCity(String cityName) {
         if(StringUtils.isEmpty(cityName)){
@@ -89,6 +95,11 @@ public class AddressServiceImpl implements IAddressService{
         return new ServiceMultiResult<>(subwayDTOS.size(),subwayDTOS);
     }
 
+    /**
+     * 获取地铁站点信息
+     * @param subwayId
+     * @return
+     */
     @Override
     public ServiceMultiResult<SubwayStationDTO> findAllSubwayStationBySubwayId(Long subwayId) {
         if(StringUtils.isEmpty(String.valueOf(subwayId))){
@@ -104,6 +115,12 @@ public class AddressServiceImpl implements IAddressService{
         return new ServiceMultiResult<>(stationDTOS.size(),stationDTOS);
     }
 
+    /**
+     * 根据城市和区域英文简写 获取具体区域信息
+     * @param cityEnName
+     * @param regionEnName
+     * @return
+     */
     @Override
     public Map<SupportAddress.Level, SupportAddressDTO> findCityAndRegion(String cityEnName, String regionEnName) {
         Map<SupportAddress.Level, SupportAddressDTO> result = new HashMap<>();
@@ -116,5 +133,39 @@ public class AddressServiceImpl implements IAddressService{
         result.put(SupportAddress.Level.REGION, modelMapper.map(region, SupportAddressDTO.class));
 
         return result;
+    }
+
+    /**
+     * 获取地铁线信息
+     * @param subwayId
+     * @return
+     */
+    @Override
+    public ServiceResult<SubwayDTO> findSubway(Long subwayId) {
+        if (subwayId == null) {
+            return ServiceResult.notFound();
+        }
+        Subway subway = subwayRepository.findOne(subwayId);
+        if (subway == null) {
+            return ServiceResult.notFound();
+        }
+        return ServiceResult.of(modelMapper.map(subway, SubwayDTO.class));
+    }
+
+    /**
+     * 获取地铁站点信息
+     * @param stationId
+     * @return
+     */
+    @Override
+    public ServiceResult<SubwayStationDTO> findSubwayStation(Long stationId) {
+        if(stationId == null){
+            return ServiceResult.notFound();
+        }
+        SubwayStation subwayStation = subwayStationRepository.findOne(stationId);
+        if(subwayStation == null){
+            return ServiceResult.notFound();
+        }
+        return ServiceResult.of(modelMapper.map(subwayStation,SubwayStationDTO.class));
     }
 }

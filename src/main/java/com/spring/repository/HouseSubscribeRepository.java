@@ -10,4 +10,5 @@ import org.springframework.stereotype.Repository;
  */
 @Repository
 public interface HouseSubscribeRepository extends CrudRepository<HouseSubscribe,Long> {
+    HouseSubscribe findByHouseIdAndUserId(Long id, Long loginUserId);
 }
