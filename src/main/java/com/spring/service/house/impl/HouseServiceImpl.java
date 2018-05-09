@@ -2,10 +2,7 @@ package com.spring.service.house.impl;
 
 import com.qiniu.common.QiniuException;
 import com.qiniu.http.Response;
-import com.spring.common.base.HouseStatus;
-import com.spring.common.base.LoginUserUtil;
-import com.spring.common.base.ServiceMultiResult;
-import com.spring.common.base.ServiceResult;
+import com.spring.common.base.*;
 import com.spring.entity.*;
 import com.spring.repository.*;
 import com.spring.service.house.IHouseService;
@@ -13,6 +10,7 @@ import com.spring.service.house.IQiNiuService;
 import com.spring.web.dto.HouseDTO;
 import com.spring.web.dto.HouseDetailDTO;
 import com.spring.web.dto.HousePictureDTO;
+import com.spring.web.dto.HouseSubscribeDTO;
 import com.spring.web.form.DatatableSearch;
 import com.spring.web.form.HouseForm;
 import com.spring.web.form.PhotoForm;
@@ -24,14 +22,13 @@ import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.domain.Specification;
+import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import javax.persistence.criteria.Predicate;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 
 /**
  *
@@ -351,6 +348,7 @@ public class HouseServiceImpl implements IHouseService {
      * @return
      */
     @Override
+    @Transactional
     public ServiceResult updateStatus(Long id, int status) {
         House house = houseRepository.findOne(id);
         if(house == null){
@@ -367,6 +365,35 @@ public class HouseServiceImpl implements IHouseService {
         }
         houseRepository.updateStatus(id,status);
 
+        return ServiceResult.success();
+    }
+    /**
+     * 管理员查询预约信息接口
+     * @param start
+     * @param size
+     */
+    @Override
+    public ServiceMultiResult<Pair<HouseDTO, HouseSubscribeDTO>> findSubscribeList(int start, int size) {
+        Long userId = LoginUserUtil.getLoginUserId();
+        Pageable pageable = new PageRequest(start / size, size, new Sort(Sort.Direction.DESC, "orderTime"));
+
+        Page<HouseSubscribe> page = subscribeRepository.findAllByAdminIdAndStatus(userId, HouseSubscribeStatus.IN_ORDER_TIME.getValue(), pageable);
+
+        return wrapper(page);
+    }
+    /**
+     * 完成预约
+     */
+    @Override
+    @Transactional
+    public ServiceResult finishSubscribe(Long houseId) {
+        Long userId = LoginUserUtil.getLoginUserId();
+        HouseSubscribe houseSubscribe = subscribeRepository.findByHouseIdAndAdminId(houseId, userId);
+        if(houseSubscribe == null){
+            return new ServiceResult(false, "无预约记录");
+        }
+        subscribeRepository.updateStatus(houseSubscribe.getId(), HouseSubscribeStatus.FINISH.getValue());
+        houseRepository.updateWatchTimes(houseId);
         return ServiceResult.success();
     }
 
@@ -424,5 +451,38 @@ public class HouseServiceImpl implements IHouseService {
         detail.setRoundService(houseForm.getRoundService());
         detail.setTraffic(houseForm.getTraffic());
         return null;
+    }
+
+    /**
+     * 将预约看房信息合成
+     * @param page
+     * @return
+     */
+    private ServiceMultiResult<Pair<HouseDTO, HouseSubscribeDTO>> wrapper(Page<HouseSubscribe> page) {
+        List<Pair<HouseDTO, HouseSubscribeDTO>> result = new ArrayList<>();
+
+        if (page.getSize() < 1) {
+            return new ServiceMultiResult<>(page.getTotalElements(), result);
+        }
+
+        List<HouseSubscribeDTO> subscribeDTOS = new ArrayList<>();
+        List<Long> houseIds = new ArrayList<>();
+        page.forEach(houseSubscribe -> {
+            subscribeDTOS.add(modelMapper.map(houseSubscribe, HouseSubscribeDTO.class));
+            houseIds.add(houseSubscribe.getHouseId());
+        });
+
+        Map<Long, HouseDTO> idToHouseMap = new HashMap<>();
+        Iterable<House> houses = houseRepository.findAll(houseIds);
+        houses.forEach(house -> {
+            idToHouseMap.put(house.getId(), modelMapper.map(house, HouseDTO.class));
+        });
+
+        for (HouseSubscribeDTO subscribeDTO : subscribeDTOS) {
+            Pair<HouseDTO, HouseSubscribeDTO> pair = Pair.of(idToHouseMap.get(subscribeDTO.getHouseId()), subscribeDTO);
+            result.add(pair);
+        }
+
+        return new ServiceMultiResult<>(page.getTotalElements(), result);
     }
 }

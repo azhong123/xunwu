@@ -22,7 +22,7 @@ public interface HouseRepository extends PagingAndSortingRepository<House, Long>
 
     @Modifying
     @Query("update House as house set house.status = :status where house.id = :id")
-    int updateStatus(Long id, int status);
+    int updateStatus(@Param(value = "id")Long id, @Param(value = "status") int status);
 
     @Modifying
     @Query("update House as house set house.watchTimes = house.watchTimes + 1 where house.id = :id")

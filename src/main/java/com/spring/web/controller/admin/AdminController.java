@@ -9,11 +9,13 @@ import com.spring.entity.SupportAddress;
 import com.spring.service.house.IAddressService;
 import com.spring.service.house.IHouseService;
 import com.spring.service.house.IQiNiuService;
+import com.spring.service.user.IUserService;
 import com.spring.web.dto.*;
 import com.spring.web.form.DatatableSearch;
 import com.spring.web.form.HouseForm;
 import com.sun.org.apache.regexp.internal.RE;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.util.Pair;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Controller;
@@ -43,6 +45,9 @@ public class AdminController {
 
     @Autowired
     private IHouseService houseService;
+
+    @Autowired
+    private IUserService userService;
 
     @Autowired
     private Gson gson;
@@ -219,6 +224,43 @@ public class AdminController {
     }
 
     /**
+     * 查询房源信息
+     * @param id
+     * @param model
+     * @return
+     */
+    @GetMapping("/admin/house/show")
+    public String ShowHouse(@RequestParam(value = "id") Long id, Model model){
+        if(id == null && id < 1L){
+            return "404";
+        }
+        ServiceResult<HouseDTO> serviceResult = houseService.findCompleteOne(id);
+        if (!serviceResult.isSuccess()) {
+            return "404";
+        }
+
+        HouseDTO result = serviceResult.getResult();
+        model.addAttribute("house", result);
+
+        Map<SupportAddress.Level, SupportAddressDTO> addressMap = addressService.findCityAndRegion(result.getCityEnName(), result.getRegionEnName());
+        model.addAttribute("city", addressMap.get(SupportAddress.Level.CITY));
+        model.addAttribute("region", addressMap.get(SupportAddress.Level.REGION));
+
+        HouseDetailDTO detailDTO = result.getHouseDetail();
+        ServiceResult<SubwayDTO> subwayServiceResult = addressService.findSubway(detailDTO.getSubwayLineId());
+        if (subwayServiceResult.isSuccess()) {
+            model.addAttribute("subway", subwayServiceResult.getResult());
+        }
+
+        ServiceResult<SubwayStationDTO> subwayStationServiceResult = addressService.findSubwayStation(detailDTO.getSubwayStationId());
+        if (subwayStationServiceResult.isSuccess()) {
+            model.addAttribute("station", subwayStationServiceResult.getResult());
+        }
+
+        return "admin/house-show";
+    }
+
+    /**
      * 编辑接口
      *
      * @param houseForm
@@ -365,4 +407,73 @@ public class AdminController {
         }
         return ApiResponse.ofMessage(HttpStatus.BAD_REQUEST.value(), result.getMessage());
     }
+
+    @GetMapping("admin/house/subscribe")
+    public String houseSubscribe() {
+        return "admin/subscribe";
+    }
+
+
+    /**
+     * 管理员预约看房信息
+     * @param draw
+     * @param start
+     * @param size
+     * @return
+     */
+    @ResponseBody
+    @GetMapping("admin/house/subscribe/list")
+    public ApiResponse subscribeList(@RequestParam(value = "draw") int draw,
+                                     @RequestParam(value = "start") int start,
+                                     @RequestParam(value = "length") int size) {
+        ServiceMultiResult<Pair<HouseDTO, HouseSubscribeDTO>> result = houseService.findSubscribeList(start, size);
+
+        ApiDataTableResponse response = new ApiDataTableResponse(ApiResponse.Status.SUCCESS);
+        response.setData(result.getResult());
+        response.setDraw(draw);
+        response.setRecordsFiltered(result.getTotal());
+        response.setRecordsTotal(result.getTotal());
+        return response;
+    }
+
+    /**
+     * 查询用户信息
+     * @param userId
+     * @return
+     */
+    @ResponseBody
+    @GetMapping("admin/user/{userId}")
+    public ApiResponse getUserInfo(@PathVariable(value = "userId") Long userId) {
+        if (userId == null || userId < 1) {
+            return ApiResponse.ofStatus(ApiResponse.Status.BAD_REQUEST);
+        }
+
+        ServiceResult<UserDTO> serviceResult = userService.findById(userId);
+        if (!serviceResult.isSuccess()) {
+            return ApiResponse.ofStatus(ApiResponse.Status.NOT_FOUND);
+        } else {
+            return ApiResponse.ofSuccess(serviceResult.getResult());
+        }
+    }
+
+    /**
+     * 完成预约
+     * @param houseId
+     * @return
+     */
+    @ResponseBody
+    @PostMapping("admin/finish/subscribe")
+    public ApiResponse finishSubscribe(@RequestParam(value = "house_id") Long houseId) {
+        if (houseId < 1) {
+            return ApiResponse.ofStatus(ApiResponse.Status.BAD_REQUEST);
+        }
+
+        ServiceResult serviceResult = houseService.finishSubscribe(houseId);
+        if (serviceResult.isSuccess()) {
+            return ApiResponse.ofSuccess("");
+        } else {
+            return ApiResponse.ofMessage(ApiResponse.Status.BAD_REQUEST.getCode(), serviceResult.getMessage());
+        }
+    }
+
 }

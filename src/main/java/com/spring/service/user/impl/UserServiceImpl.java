@@ -1,10 +1,13 @@
 package com.spring.service.user.impl;
 
+import com.spring.common.base.ServiceResult;
 import com.spring.entity.Role;
 import com.spring.entity.User;
 import com.spring.repository.RoleRepository;
 import com.spring.repository.UserRepository;
 import com.spring.service.user.IUserService;
+import com.spring.web.dto.UserDTO;
+import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.GrantedAuthority;
@@ -27,6 +30,9 @@ public class UserServiceImpl implements IUserService{
 
     @Autowired
     private RoleRepository roleRepository;
+
+    @Autowired
+    private ModelMapper modelMapper;
 
 
     /**
@@ -54,5 +60,21 @@ public class UserServiceImpl implements IUserService{
 
         user.setAuthorityList(authorityList);
         return user;
+    }
+
+    /**
+     * 查找用户信息
+     * @param userId
+     * @return
+     */
+    @Override
+    public ServiceResult<UserDTO> findById(Long userId) {
+        User user = userRepository.findOne(userId);
+        if(user == null){
+            return ServiceResult.notFound();
+        }
+
+        UserDTO userDTO = modelMapper.map(user,UserDTO.class);
+        return ServiceResult.of(userDTO);
     }
 }

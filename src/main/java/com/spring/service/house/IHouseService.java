@@ -3,8 +3,10 @@ package com.spring.service.house;
 import com.spring.common.base.ServiceMultiResult;
 import com.spring.common.base.ServiceResult;
 import com.spring.web.dto.HouseDTO;
+import com.spring.web.dto.HouseSubscribeDTO;
 import com.spring.web.form.DatatableSearch;
 import com.spring.web.form.HouseForm;
+import org.springframework.data.util.Pair;
 
 /**
  * 房屋 service
@@ -79,4 +81,16 @@ public interface IHouseService {
      * @return
      */
     ServiceResult updateStatus(Long id, int status);
+
+    /**
+     * 管理员查询预约信息接口
+     * @param start
+     * @param size
+     */
+    ServiceMultiResult<Pair<HouseDTO,HouseSubscribeDTO>> findSubscribeList(int start, int size);
+
+    /**
+     * 完成预约
+     */
+    ServiceResult finishSubscribe(Long houseId);
 }

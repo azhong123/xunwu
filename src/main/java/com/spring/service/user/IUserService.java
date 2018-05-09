@@ -1,6 +1,8 @@
 package com.spring.service.user;
 
+import com.spring.common.base.ServiceResult;
 import com.spring.entity.User;
+import com.spring.web.dto.UserDTO;
 
 /**
  * 用户service
@@ -14,4 +16,6 @@ public interface IUserService {
      * @return
      */
     User findUserByName(String name);
+
+    ServiceResult<UserDTO> findById(Long userId);
 }
