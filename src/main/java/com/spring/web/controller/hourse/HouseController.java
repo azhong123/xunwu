@@ -189,6 +189,8 @@ public class HouseController {
         ServiceResult<UserDTO> userDTOServiceResult = userService.findById(houseDTO.getAdminId());
         model.addAttribute("agent", userDTOServiceResult.getResult());
         model.addAttribute("house", houseDTO);
+
+        model.addAttribute("houseCountInDistrict",0);
         return "house-detail";
 
     }

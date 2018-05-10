@@ -27,6 +27,7 @@ import org.springframework.data.util.Pair;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
+import org.thymeleaf.expression.Maps;
 
 import javax.persistence.criteria.Predicate;
 import javax.persistence.criteria.Root;
@@ -407,7 +408,8 @@ public class HouseServiceImpl implements IHouseService {
      */
     @Override
     public ServiceMultiResult<HouseDTO> query(RentSearch rentSearch) {
-        Sort sort = new Sort(Sort.Direction.DESC,"lastUpdateTime");
+        // 实现动态排序
+        Sort sort = HouseSort.generateSort(rentSearch.getOrderBy(),rentSearch.getOrderDirection());
         int page = rentSearch.getStart() / rentSearch.getSize();
 
         Pageable pageable = new PageRequest(page,rentSearch.getSize(),sort);
@@ -417,19 +419,52 @@ public class HouseServiceImpl implements IHouseService {
             Predicate predicate = criteriaBuilder.equal(root.get("status"),HouseStatus.PASSES.getValue());
 
             predicate = criteriaBuilder.and(predicate,criteriaBuilder.equal(root.get("cityEnName"),rentSearch.getCityEnName()));
+
+            // 处理 距离地铁最近的排序
+            if(HouseSort.DISTANCE_TO_SUBWAY_KEY.equals(rentSearch.getOrderBy())){
+                predicate = criteriaBuilder.and(predicate,criteriaBuilder.gt(root.get(HouseSort.DISTANCE_TO_SUBWAY_KEY), -1));
+            }
             return predicate;
         };
 
         Page<House> houses = houseRepository.findAll(specification, pageable);
 
         List<HouseDTO> houseDTOS = new ArrayList<>();
+        List<Long> houseIds = new ArrayList<>();
+        Map<Long, HouseDTO> idToHouseMap = new HashMap<>();
+
         houses.forEach(house -> {
             HouseDTO houseDTO = modelMapper.map(house,HouseDTO.class);
             houseDTO.setCover(cdnPrefix + house.getCover());
             houseDTOS.add(houseDTO);
+            houseIds.add(house.getId());
+            idToHouseMap.put(house.getId(),houseDTO);
         });
 
+        // 渲染详细信息 及 标签
+        wrapperHouseList(houseIds,idToHouseMap);
+
         return new ServiceMultiResult<>(houses.getTotalElements(),houseDTOS);
+    }
+
+    /**
+     * 渲染详细信息 及 标签
+     * @param houseIds
+     * @param idToHouseMap
+     */
+    private void wrapperHouseList(List<Long> houseIds,Map<Long, HouseDTO> idToHouseMap){
+        List<HouseDetail> houseDetails = houseDetailRepository.findAllByHouseIdIn(houseIds);
+        houseDetails.forEach(houseDetail -> {
+            HouseDTO houseDTO = idToHouseMap.get(houseDetail.getHouseId());
+            HouseDetailDTO houseDetailDTO = modelMapper.map(houseDetail,HouseDetailDTO.class);
+            houseDTO.setHouseDetail(houseDetailDTO);
+        });
+
+        List<HouseTag> houseTags = houseTagRepository.findAllByHouseIdIn(houseIds);
+        houseTags.forEach(houseTag -> {
+            HouseDTO houseDTO = idToHouseMap.get(houseTag.getHouseId());
+            houseDTO.getTags().add(houseTag.getName());
+        });
     }
 
     /**

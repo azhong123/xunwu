@@ -378,8 +378,7 @@ public class AdminController {
      */
     @PutMapping("admin/house/operate/{id}/{operation}")
     @ResponseBody
-    public ApiResponse operateHouse(@PathVariable(value = "id") Long id,
-                                    @PathVariable(value = "operation") int operation) {
+    public ApiResponse operateHouse(@PathVariable(value = "id") Long id, @PathVariable(value = "operation") int operation) {
         if (id <= 0) {
             return ApiResponse.ofStatus(ApiResponse.Status.NOT_VALID_PARAMS);
         }
