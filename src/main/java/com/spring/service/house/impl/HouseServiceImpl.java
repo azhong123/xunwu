@@ -14,6 +14,7 @@ import com.spring.web.dto.HouseSubscribeDTO;
 import com.spring.web.form.DatatableSearch;
 import com.spring.web.form.HouseForm;
 import com.spring.web.form.PhotoForm;
+import com.spring.web.form.RentSearch;
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.CollectionUtils;
 
 import javax.persistence.criteria.Predicate;
+import javax.persistence.criteria.Root;
 import java.util.*;
 
 /**
@@ -395,6 +397,39 @@ public class HouseServiceImpl implements IHouseService {
         subscribeRepository.updateStatus(houseSubscribe.getId(), HouseSubscribeStatus.FINISH.getValue());
         houseRepository.updateWatchTimes(houseId);
         return ServiceResult.success();
+    }
+
+
+    /**
+     * 查询房源信息
+     * @param rentSearch
+     * @return
+     */
+    @Override
+    public ServiceMultiResult<HouseDTO> query(RentSearch rentSearch) {
+        Sort sort = new Sort(Sort.Direction.DESC,"lastUpdateTime");
+        int page = rentSearch.getStart() / rentSearch.getSize();
+
+        Pageable pageable = new PageRequest(page,rentSearch.getSize(),sort);
+
+        Specification<House> specification = (root,criteriaQuery,criteriaBuilder)->{
+
+            Predicate predicate = criteriaBuilder.equal(root.get("status"),HouseStatus.PASSES.getValue());
+
+            predicate = criteriaBuilder.and(predicate,criteriaBuilder.equal(root.get("cityEnName"),rentSearch.getCityEnName()));
+            return predicate;
+        };
+
+        Page<House> houses = houseRepository.findAll(specification, pageable);
+
+        List<HouseDTO> houseDTOS = new ArrayList<>();
+        houses.forEach(house -> {
+            HouseDTO houseDTO = modelMapper.map(house,HouseDTO.class);
+            houseDTO.setCover(cdnPrefix + house.getCover());
+            houseDTOS.add(houseDTO);
+        });
+
+        return new ServiceMultiResult<>(houses.getTotalElements(),houseDTOS);
     }
 
     /**

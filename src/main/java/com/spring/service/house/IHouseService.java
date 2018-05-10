@@ -6,6 +6,7 @@ import com.spring.web.dto.HouseDTO;
 import com.spring.web.dto.HouseSubscribeDTO;
 import com.spring.web.form.DatatableSearch;
 import com.spring.web.form.HouseForm;
+import com.spring.web.form.RentSearch;
 import org.springframework.data.util.Pair;
 
 /**
@@ -93,4 +94,11 @@ public interface IHouseService {
      * 完成预约
      */
     ServiceResult finishSubscribe(Long houseId);
+
+    /**
+     * 查询房源信息
+     * @param rentSearch
+     * @return
+     */
+    ServiceMultiResult<HouseDTO> query(RentSearch rentSearch);
 }

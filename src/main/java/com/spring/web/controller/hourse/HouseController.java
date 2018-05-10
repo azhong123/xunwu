@@ -1,6 +1,7 @@
 package com.spring.web.controller.hourse;
 
 import com.spring.common.base.ApiResponse;
+import com.spring.common.base.RentValueBlock;
 import com.spring.common.base.ServiceMultiResult;
 import com.spring.common.base.ServiceResult;
 import com.spring.entity.SupportAddress;
@@ -17,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import javax.servlet.http.HttpSession;
+import java.util.ArrayList;
 import java.util.Map;
 
 /**
@@ -111,6 +113,7 @@ public class HouseController {
                 String cityEnNameInSession = (String) session.getAttribute("cityEnName");
                 if(cityEnNameInSession == null){
                     redirectAttributes.addAttribute("msg", "must_chose_city");
+                    return "redirect:/index";
                 }else {
                     rentSearch.setCityEnName(cityEnNameInSession);
                 }
@@ -134,9 +137,28 @@ public class HouseController {
             return "redirect:/index";
         }
 
-        return null;
+        ServiceMultiResult<HouseDTO> result = houseService.query(rentSearch);
 
+        model.addAttribute("total",result.getTotal());
+        model.addAttribute("houses",result.getResult());
 
+        if(rentSearch.getRegionEnName() == null){
+            rentSearch.setRegionEnName("*");
+        }
+
+        // 放回 搜索信息，和城市信息
+        model.addAttribute("searchBody",rentSearch);
+        model.addAttribute("regions",regionsByCityName.getResult());
+
+        // 放入 价格区间 和 区域区间
+        model.addAttribute("priceBlocks", RentValueBlock.PRICE_BLOCK);
+        model.addAttribute("areaBlocks",RentValueBlock.AREA_BLOCK);
+
+        // 将用户价格区间和区域区间 信息保留并返回前端
+        model.addAttribute("currentPriceBlock",RentValueBlock.matchPrice(rentSearch.getPriceBlock()));
+        model.addAttribute("currentAreaBlock",RentValueBlock.matchArea(rentSearch.getAreaBlock()));
+
+        return "rent-list";
     }
 
     /**
