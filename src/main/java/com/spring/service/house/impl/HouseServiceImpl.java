@@ -7,6 +7,7 @@ import com.spring.entity.*;
 import com.spring.repository.*;
 import com.spring.service.house.IHouseService;
 import com.spring.service.house.IQiNiuService;
+import com.spring.service.search.ISearchService;
 import com.spring.web.dto.HouseDTO;
 import com.spring.web.dto.HouseDetailDTO;
 import com.spring.web.dto.HousePictureDTO;
@@ -63,6 +64,9 @@ public class HouseServiceImpl implements IHouseService {
 
     @Autowired
     private HouseSubscribeRepository subscribeRepository;
+
+    @Autowired
+    private ISearchService searchService;
 
     @Autowired
     private IQiNiuService qiNiuService;
@@ -202,6 +206,11 @@ public class HouseServiceImpl implements IHouseService {
         modelMapper.map(houseForm, house);
         house.setLastUpdateTime(new Date());
         houseRepository.save(house);
+
+        // 状态为 上架 更新索引
+        if(house.getStatus() == HouseStatus.PASSES.getValue()){
+            searchService.index(house.getId());
+        }
 
         return ServiceResult.success();
     }
@@ -367,6 +376,13 @@ public class HouseServiceImpl implements IHouseService {
             return new ServiceResult(false,"已删除的房屋，不可更改！");
         }
         houseRepository.updateStatus(id,status);
+
+        // 状态为 上架 时生成索引，其余删除索引
+        if(status == HouseStatus.PASSES.getValue()){
+            searchService.index(id);
+        } else {
+            searchService.remove(id);
+        }
 
         return ServiceResult.success();
     }
