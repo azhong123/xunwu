@@ -9,6 +9,7 @@ import com.spring.repository.HouseDetailRepository;
 import com.spring.repository.HouseRepository;
 import com.spring.repository.HouseTagRepository;
 import com.spring.service.search.HouseIndexKey;
+import com.spring.service.search.HouseIndexMessage;
 import com.spring.service.search.HouseIndexTemplate;
 import com.spring.service.search.ISearchService;
 import org.elasticsearch.action.index.IndexResponse;
@@ -27,9 +28,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
+import org.springframework.kafka.annotation.KafkaListener;
+import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -45,6 +49,8 @@ public class SearchServiceImpl implements ISearchService {
     private static final String INDEX_NAME = "xunwu";
 
     private static final String INDEX_TYPE = "house";
+
+    private static final String INDEX_TOPIC = "house_build";
 
     @Autowired
     private HouseRepository houseRepository;
@@ -64,57 +70,37 @@ public class SearchServiceImpl implements ISearchService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private KafkaTemplate<String,String> kafkaTemplate;
+
+    @KafkaListener(topics = INDEX_TOPIC)
+    private void handleMessage(String content){
+        try {
+            HouseIndexMessage message = objectMapper.readValue(content, HouseIndexMessage.class);
+            switch (message.getOperation()){
+                case HouseIndexMessage.INDEX:
+                    this.createOrUpdateIndex(message);
+                    break;
+                case HouseIndexMessage.REMOVE:
+                    this.removeIndex(message);
+                    break;
+                default:
+                    logger.info("【Kafka Get Message】Not support message content =>",content);
+                    break;
+            }
+        } catch (IOException e) {
+            logger.error("【Kafka Get Message】 Cannot parse json for content =>{} " , content , e);
+        }
+    }
+
     /**
      * 索引目标房源
      * @param houseId
      */
     @Override
-    public boolean index(Long houseId) {
-        House house = houseRepository.findOne(houseId);
-        if(house == null){
-            logger.error("Index houseId => {} dose not exist!" ,houseId);
-            return false;
-        }
-        HouseIndexTemplate indexTemplate = new HouseIndexTemplate();
-        modelMapper.map(house,indexTemplate);
-
-        // 房屋详情信息
-        HouseDetail houseDetail = houseDetailRepository.findByHouseId(houseId);
-        if(houseDetail == null){
-            //todo 异常情况
-        }
-        modelMapper.map(houseDetail,indexTemplate);
-
-        // 房屋标签
-        List<HouseTag> houseTags = houseTagRepository.findAllByHouseId(houseId);
-        if(!CollectionUtils.isEmpty(houseTags)){
-            List<String> tagStrings = new ArrayList<>();
-            houseTags.stream().forEach(tag ->tagStrings.add(tag.getName()));
-            indexTemplate.setTags(tagStrings);
-        }
-
-        // 查询 es 是否有数据
-        SearchRequestBuilder requestBuilder = this.esClient.prepareSearch(INDEX_NAME).setTypes(INDEX_TYPE)
-                .setQuery(QueryBuilders.termQuery(HouseIndexKey.HOUSE_ID, houseId));
-        logger.info("【ElasticSearch index 】 requestBuilder =>{}",requestBuilder.toString());
-
-        SearchResponse searchResponse = requestBuilder.get();
-        // 查询es 数据数量
-        long totalHits = searchResponse.getHits().getTotalHits();
-        boolean success;
-        if(totalHits == 0){
-            success = create(indexTemplate);
-        }else if(totalHits == 1){
-            String esId = searchResponse.getHits().getAt(0).getId();
-            success = update(esId,indexTemplate);
-        } else {
-            success = deleteAndCreate(totalHits,indexTemplate);
-        }
-
-        if(success){
-            logger.info("【ElasticSearch index】 success with house" + houseId);
-        }
-        return success;
+    public void index(Long houseId) {
+        // 正常用户创建 es 索引 retry  = 0 并给 kafka 发送消息
+        this.index(houseId,0);
     }
 
     /**
@@ -123,14 +109,44 @@ public class SearchServiceImpl implements ISearchService {
      */
     @Override
     public void remove(Long houseId) {
-        DeleteByQueryRequestBuilder builder = DeleteByQueryAction.INSTANCE.newRequestBuilder(esClient)
-                .filter(QueryBuilders.termQuery(HouseIndexKey.HOUSE_ID,houseId))
-                .source(INDEX_NAME);
-        logger.info("【移除 ES 房源索引】Delete by Query for house =>",builder);
+        // 正常用户移除 es 索引 retry  = 0 并给 kafka 发送消息
+        this.remove(houseId,0);
+    }
 
-        BulkByScrollResponse response = builder.get();
-        long deleted = response.getDeleted();
-        logger.info("【移除 ES 房源索引】Delete total" + deleted);
+    /**
+     * 创建 ElasticSearch 索引 发送 kafka 消息
+     * @param houseId
+     * @param retry
+     */
+    private void index (Long houseId,int retry){
+        if(retry > HouseIndexMessage.MAX_RETRY){
+            logger.error("【Index ElasticSearch】Retry index times over 3 for houseId =>{},please check it !" ,houseId);
+            return;
+        }
+        HouseIndexMessage message = new HouseIndexMessage(houseId,HouseIndexMessage.INDEX,retry);
+        try {
+            kafkaTemplate.send(INDEX_TOPIC,objectMapper.writeValueAsString(message));
+        } catch (JsonProcessingException e) {
+            logger.error("【Index ElasticSearch】json encode error for message =>{}",message,e);
+        }
+    }
+
+    /**
+     * 移除 ElasticSearch 索引 ，发送 kafka 消息
+     * @param houseId
+     * @param retry
+     */
+    private void remove(Long houseId,int retry){
+        if(retry > HouseIndexMessage.MAX_RETRY){
+            logger.error("【Remove ElasticSearch Index】 Retry index times over 3 for houseId =>{},please check it !" ,houseId);
+            return;
+        }
+        HouseIndexMessage message = new HouseIndexMessage(houseId,HouseIndexMessage.REMOVE,retry);
+        try {
+            kafkaTemplate.send(INDEX_TOPIC,objectMapper.writeValueAsString(message));
+        } catch (JsonProcessingException e) {
+            logger.error("【Remove ElasticSearch Index】json encode error for message =>{}",message,e);
+        }
     }
 
     /**
@@ -195,6 +211,78 @@ public class SearchServiceImpl implements ISearchService {
             return false;
         } else {
             return create(indexTemplate);
+        }
+    }
+
+    /**
+     * 通过消费 kafka 消息，创建索引
+     * @param message
+     */
+    private void createOrUpdateIndex(HouseIndexMessage message){
+        Long houseId = message.getHouseId();
+        House house = houseRepository.findOne(houseId);
+        if(house == null){
+            logger.error("【Create ElasticSearch Index】Index houseId => {} dose not exist!" ,houseId);
+            this.index(houseId ,message.getRetry() + 1);
+            return;
+        }
+        HouseIndexTemplate indexTemplate = new HouseIndexTemplate();
+        modelMapper.map(house,indexTemplate);
+
+        // 房屋详情信息
+        HouseDetail houseDetail = houseDetailRepository.findByHouseId(houseId);
+        if(houseDetail == null){
+            //todo 异常情况
+        }
+        modelMapper.map(houseDetail,indexTemplate);
+
+        // 房屋标签
+        List<HouseTag> houseTags = houseTagRepository.findAllByHouseId(houseId);
+        if(!CollectionUtils.isEmpty(houseTags)){
+            List<String> tagStrings = new ArrayList<>();
+            houseTags.stream().forEach(tag ->tagStrings.add(tag.getName()));
+            indexTemplate.setTags(tagStrings);
+        }
+
+        // 查询 es 是否有数据
+        SearchRequestBuilder requestBuilder = this.esClient.prepareSearch(INDEX_NAME).setTypes(INDEX_TYPE)
+                .setQuery(QueryBuilders.termQuery(HouseIndexKey.HOUSE_ID, houseId));
+        logger.info("【Create ElasticSearch index 】 requestBuilder =>{}",requestBuilder.toString());
+
+        SearchResponse searchResponse = requestBuilder.get();
+        // 查询es 数据数量
+        long totalHits = searchResponse.getHits().getTotalHits();
+        boolean success;
+        if(totalHits == 0){
+            success = create(indexTemplate);
+        }else if(totalHits == 1){
+            String esId = searchResponse.getHits().getAt(0).getId();
+            success = update(esId,indexTemplate);
+        } else {
+            success = deleteAndCreate(totalHits,indexTemplate);
+        }
+
+        if(success){
+            logger.info("【Create ElasticSearch index】 success with house" + houseId);
+        }
+    }
+
+    /**
+     * 消费 kafka 消息，移除索引
+     * @param message
+     */
+    private void removeIndex(HouseIndexMessage message){
+        Long houseId = message.getHouseId();
+        DeleteByQueryRequestBuilder builder = DeleteByQueryAction.INSTANCE.newRequestBuilder(esClient)
+                .filter(QueryBuilders.termQuery(HouseIndexKey.HOUSE_ID,houseId))
+                .source(INDEX_NAME);
+        logger.info("【Remove ElasticSearch index】Delete by Query for house =>",builder);
+
+        BulkByScrollResponse response = builder.get();
+        long deleted = response.getDeleted();
+        logger.info("【Remove ElasticSearch index】Delete total" + deleted);
+        if(deleted <= 0){
+            this.remove(houseId,message.getRetry() + 1);
         }
     }
 

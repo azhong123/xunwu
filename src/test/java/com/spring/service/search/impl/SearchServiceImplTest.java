@@ -19,9 +19,7 @@ public class SearchServiceImplTest extends ApplicationTests {
     @Test
     public void index() throws Exception {
         Long houseId = 15L;
-        boolean success = iSearchService.index(houseId);
-        Assert.assertTrue(success);
-
+        iSearchService.index(houseId);
 
     }
 
